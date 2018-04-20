@@ -28,6 +28,15 @@ class Line:
         self.x2 = x2
         self.y2 = y2
         self.width = width
+    
+    def from_kicad(line):
+        return Line(line.start[0], line.start[1], line.end[0], line.end[1], line.width)
+    
+    def draw(self, ctx):
+        ctx.set_line_width(self.width)
+        ctx.move_to(self.x1, self.y1)
+        ctx.line_to(self.x2, self.y2)
+        
 
 class Layer:
     def __init__(self, color, alpha=1.0):
@@ -38,31 +47,26 @@ class Layer:
     def add_object(self, obj):
         self.objects.append(obj)
     
+    def draw(self, ctx):
+        for obj in self.objects:
+            try:
+                obj.draw(ctx)
+            except:
+                print(obj)
+                raise
 
 layers = {}
 layers['F.Fab'] = Layer((0.8, 0.2, 0.2))
 layers['F.CrtYd'] = Layer((0.2, 0.8, 0.2), 0.2)
 
-print(m)
-
-def draw_line(line):
-    x1 = line.start[0]
-    x2 = line.end[0]
-    y1 = line.start[1] 
-    y2 = line.end[1]
-    ctx.set_line_width(line.width)
-    ctx.move_to(x1, y1)
-    ctx.line_to(x2, y2)
-
 ctx.set_line_cap(cairo.LINE_CAP_ROUND)
 ctx.set_line_join(cairo.LINE_JOIN_ROUND)
 for line in m.lines:
-    layers[line.layer].add_object(line)
+    layers[line.layer].add_object(Line.from_kicad(line))
 
 for layer in layers.values():
     ctx.set_source_rgba(*layer.color, layer.alpha)
-    for line in layer.objects:
-        draw_line(line)
+    layer.draw(ctx)
     ctx.stroke()
 
 surface.write_to_png("example.png")
