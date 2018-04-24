@@ -36,6 +36,7 @@ class Line:
         ctx.set_line_width(self.width)
         ctx.move_to(self.x1, self.y1)
         ctx.line_to(self.x2, self.y2)
+        ctx.stroke()
         
 class Rectangle:
     def __init__(self, x, y, width, height):
@@ -51,6 +52,7 @@ class Rectangle:
         x = self.x - (self.width / 2.0)
         y = self.y - (self.height / 2.0)
         ctx.rectangle(x, y, self.width, self.height)
+        ctx.fill()
 
 class Layer:
     def __init__(self, color, alpha=1.0):
@@ -62,12 +64,16 @@ class Layer:
         self.objects.append(obj)
     
     def draw(self, ctx):
+        ctx.push_group()
+        ctx.set_source_rgb(*layer.color)
         for obj in self.objects:
             try:
                 obj.draw(ctx)
             except:
                 print(obj)
                 raise
+        ctx.pop_group_to_source()
+        ctx.paint_with_alpha(layer.alpha)
 
 layers = {}
 layers['F.Fab'] = Layer((0.8, 0.2, 0.2))
@@ -85,9 +91,7 @@ for pad in m.pads:
         layers[layer].add_object(Rectangle.from_pad(pad))
 
 for layer in layers.values():
-    ctx.set_source_rgba(*layer.color, layer.alpha)
     layer.draw(ctx)
-    ctx.stroke()
 
 surface.write_to_png("example.png")
 
