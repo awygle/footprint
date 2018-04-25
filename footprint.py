@@ -61,6 +61,46 @@ class Rectangle:
         ctx.rectangle(x, y, self.width, self.height)
         ctx.fill()
 
+class Polygon:
+    def __init__(self, points):
+        self.points = points
+        Polygon.run = 0
+    
+    def from_pad(pad, layer):
+        size = [pad.size[0], pad.size[1]]
+        if layer == 'F.Mask' and pad.attributes['solder_mask_margin']:
+            size[0] += pad.attributes['solder_mask_margin']
+            size[1] += pad.attributes['solder_mask_margin']
+        if layer == 'F.Paste' and pad.attributes['solder_paste_margin']:
+            size[0] += pad.attributes['solder_paste_margin']
+            size[1] += pad.attributes['solder_paste_margin']
+        points = []
+        xoff = (size[0] / 2.0) 
+        xdelt = (pad.rect_delta[1] / 2.0) # these indices are inverted compared to what makes sense to me
+        yoff = (size[1] / 2.0) 
+        ydelt = (pad.rect_delta[0] / 2.0)
+        # top left
+        points.append( (pad.at[0] - xoff + xdelt, pad.at[1] - yoff - ydelt) )
+        # top right
+        points.append( (pad.at[0] + xoff - xdelt, pad.at[1] - yoff + ydelt) )
+        # bottom right
+        points.append( (pad.at[0] + xoff + xdelt, pad.at[1] + yoff - ydelt) )
+        # bottom left
+        points.append( (pad.at[0] - xoff - xdelt, pad.at[1] + yoff + ydelt) )
+        poly = Polygon(points)
+        poly.pad = pad
+        return poly
+    
+    def draw(self, ctx):
+        #if Polygon.run:
+        #    return
+        #else:
+        #    Polygon.run = 1
+        for point in self.points:
+            ctx.line_to(point[0], point[1])
+        ctx.close_path()
+        ctx.fill()
+
 class Layer:
     def __init__(self, color, alpha=1.0):
         self.color = color
@@ -86,14 +126,16 @@ def pad_to_object(pad, layer):
     shape = pad.attributes['shape']
     if shape == "rect":
         return Rectangle.from_pad(pad, layer)
+    if shape == "trapezoid":
+        return Polygon.from_pad(pad, layer)
     else:
         raise NotImplementedError("Pad shape " + shape + " not yet supported")
 
 layers = {}
 layers['F.Fab'] = Layer((0.8, 0.2, 0.2))
 layers['F.CrtYd'] = Layer((0.2, 0.8, 0.2), 0.2)
-layers['F.Cu'] = Layer((0.2, 0.2, 0.8), 0.0)
-layers['F.Mask'] = Layer((0.8, 0.2, 0.8), 1.0)
+layers['F.Cu'] = Layer((0.2, 0.2, 0.8), 1.0)
+layers['F.Mask'] = Layer((0.8, 0.2, 0.8), 0.0)
 layers['F.Paste'] = Layer((0.8, 0.8, 0.2), 0.0)
 layers['F.SilkS'] = Layer((0.2, 0.8, 0.8), 0.0)
 
