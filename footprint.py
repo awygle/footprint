@@ -53,19 +53,30 @@ class Rectangle:
         if layer == 'F.Paste' and pad.attributes['solder_paste_margin']:
             size[0] += pad.attributes['solder_paste_margin']
             size[1] += pad.attributes['solder_paste_margin']
-        return Rectangle(pad.at[0], pad.at[1], pad.size[0], pad.size[1])
+        rect = Rectangle(pad.at[0], pad.at[1], pad.size[0], pad.size[1])
+        rect.origin = (pad.at[0], pad.at[1])
+        if len(pad.at) > 2:
+            rect.angle = pad.at[2]
+        else:
+            rect.angle = 0
+        return rect
     
     def draw(self, ctx):
+        ctx.save()
+        ctx.translate(self.origin[0], self.origin[1])
+        ctx.rotate(math.radians(self.angle))
+        ctx.translate(-self.origin[0], -self.origin[1])
         x = self.x - (self.width / 2.0)
         y = self.y - (self.height / 2.0)
         ctx.rectangle(x, y, self.width, self.height)
         ctx.fill()
+        ctx.restore()
 
 class Polygon:
     def __init__(self, points):
         self.points = points
         Polygon.run = 0
-    
+
     def from_pad(pad, layer):
         size = [pad.size[0], pad.size[1]]
         if layer == 'F.Mask' and pad.attributes['solder_mask_margin']:
@@ -75,9 +86,9 @@ class Polygon:
             size[0] += pad.attributes['solder_paste_margin']
             size[1] += pad.attributes['solder_paste_margin']
         points = []
-        xoff = (size[0] / 2.0) 
+        xoff = (size[0] / 2.0)
         xdelt = (pad.rect_delta[1] / 2.0) # these indices are inverted compared to what makes sense to me
-        yoff = (size[1] / 2.0) 
+        yoff = (size[1] / 2.0)
         ydelt = (pad.rect_delta[0] / 2.0)
         # top left
         points.append( (pad.at[0] - xoff + xdelt, pad.at[1] - yoff - ydelt) )
@@ -89,17 +100,23 @@ class Polygon:
         points.append( (pad.at[0] - xoff - xdelt, pad.at[1] + yoff + ydelt) )
         poly = Polygon(points)
         poly.pad = pad
+        poly.origin = (pad.at[0], pad.at[1])
+        if len(pad.at) > 2:
+            poly.angle = pad.at[2]
+        else:
+            poly.angle = 0
         return poly
-    
+
     def draw(self, ctx):
-        #if Polygon.run:
-        #    return
-        #else:
-        #    Polygon.run = 1
+        ctx.save()
+        ctx.translate(self.origin[0], self.origin[1])
+        ctx.rotate(math.radians(self.angle))
+        ctx.translate(-self.origin[0], -self.origin[1])
         for point in self.points:
             ctx.line_to(point[0], point[1])
         ctx.close_path()
         ctx.fill()
+        ctx.restore()
 
 class Layer:
     def __init__(self, color, alpha=1.0):
