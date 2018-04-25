@@ -7,7 +7,7 @@ import pykicad
 
 m = pykicad.module.Module.from_file("test.kicad_mod")
 
-WIDTH, HEIGHT = 256, 256
+WIDTH, HEIGHT = 2048, 2048
 
 surface = cairo.ImageSurface(cairo.FORMAT_ARGB32, WIDTH, HEIGHT)
 ctx = cairo.Context(surface)
@@ -45,7 +45,14 @@ class Rectangle:
         self.width = width
         self.height = height
     
-    def from_pad(pad):
+    def from_pad(pad, layer):
+        size = [pad.size[0], pad.size[1]]
+        if layer == 'F.Mask' and pad.attributes['solder_mask_margin']:
+            size[0] += pad.attributes['solder_mask_margin']
+            size[1] += pad.attributes['solder_mask_margin']
+        if layer == 'F.Paste' and pad.attributes['solder_paste_margin']:
+            size[0] += pad.attributes['solder_paste_margin']
+            size[1] += pad.attributes['solder_paste_margin']
         return Rectangle(pad.at[0], pad.at[1], pad.size[0], pad.size[1])
     
     def draw(self, ctx):
@@ -75,12 +82,20 @@ class Layer:
         ctx.pop_group_to_source()
         ctx.paint_with_alpha(layer.alpha)
 
+def pad_to_object(pad, layer):
+    shape = pad.attributes['shape']
+    if shape == "rect":
+        return Rectangle.from_pad(pad, layer)
+    else:
+        raise NotImplementedError("Pad shape " + shape + " not yet supported")
+
 layers = {}
 layers['F.Fab'] = Layer((0.8, 0.2, 0.2))
 layers['F.CrtYd'] = Layer((0.2, 0.8, 0.2), 0.2)
-layers['F.Cu'] = Layer((0.2, 0.2, 0.8), 1.0)
-layers['F.Mask'] = Layer((0.8, 0.2, 0.8), 0.0)
+layers['F.Cu'] = Layer((0.2, 0.2, 0.8), 0.0)
+layers['F.Mask'] = Layer((0.8, 0.2, 0.8), 1.0)
 layers['F.Paste'] = Layer((0.8, 0.8, 0.2), 0.0)
+layers['F.SilkS'] = Layer((0.2, 0.8, 0.8), 0.0)
 
 ctx.set_line_cap(cairo.LINE_CAP_ROUND)
 ctx.set_line_join(cairo.LINE_JOIN_ROUND)
@@ -88,7 +103,7 @@ for line in m.lines:
     layers[line.layer].add_object(Line.from_kicad(line))
 for pad in m.pads:
     for layer in pad.layers:
-        layers[layer].add_object(Rectangle.from_pad(pad))
+        layers[layer].add_object(pad_to_object(pad, layer))
 
 for layer in layers.values():
     layer.draw(ctx)
