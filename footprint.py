@@ -11,13 +11,14 @@ WIDTH, HEIGHT = 2048, 2048
 
 surface = cairo.ImageSurface(cairo.FORMAT_ARGB32, WIDTH, HEIGHT)
 ctx = cairo.Context(surface)
-ctx.scale(WIDTH/2, HEIGHT/2)
-ctx.translate(1, 1)
+maxsize = 8
+ctx.scale(WIDTH/maxsize, HEIGHT/maxsize)
+ctx.translate(maxsize / 2, maxsize / 2)
 
 pat = cairo.LinearGradient(0.0, -1.0, 0.0, 1.0)
 pat.add_color_stop_rgba(1, 0.7, 0, 0, 0.5)  # First stop, 50% opacity
 pat.add_color_stop_rgba(0, 0.9, 0.7, 0.2, 1)  # Last stop, 100% opacity
-ctx.rectangle(-1, -1, 2, 2)  # Rectangle(x0, y0, x1, y1)
+ctx.rectangle(-(maxsize/2), -(maxsize/2), maxsize, maxsize)  # Rectangle(x0, y0, x1, y1)
 ctx.set_source(pat)
 ctx.fill()
 
@@ -53,7 +54,7 @@ class Rectangle:
         if layer == 'F.Paste' and pad.attributes['solder_paste_margin']:
             size[0] += pad.attributes['solder_paste_margin']
             size[1] += pad.attributes['solder_paste_margin']
-        rect = Rectangle(pad.at[0], pad.at[1], pad.size[0], pad.size[1])
+        rect = Rectangle(pad.at[0], pad.at[1], size[0], size[1])
         rect.origin = (pad.at[0], pad.at[1])
         if len(pad.at) > 2:
             rect.angle = pad.at[2]
@@ -71,6 +72,45 @@ class Rectangle:
         ctx.rectangle(x, y, self.width, self.height)
         ctx.fill()
         ctx.restore()
+
+class Arc:
+    def __init__(self, x, y, radius, start_angle, end_angle):
+        self.x = x
+        self.y = y
+        self.radius = radius
+        self.start_angle = start_angle
+        self.end_angle = end_angle
+    
+    def from_kicad(arc):
+        delta_x = arc.end[0] - arc.start[0]
+        delta_y = arc.start[1] - arc.end[1] # because negative Y is higher up
+        radius = math.hypot(delta_x, delta_y)
+        start_angle = math.atan2(delta_y, delta_x)
+        end_angle = start_angle + math.radians(arc.angle)
+        return Arc(arc.start[0], arc.start[1], radius, start_angle, end_angle)
+
+    def draw(self, ctx):
+        ctx.arc_negative(self.x, self.y, self.radius, self.start_angle, self.end_angle)
+        ctx.stroke()
+
+class Circle:
+    def __init__(self, x, y, diameter):
+        self.x = x
+        self.y = y
+        self.radius = diameter / 2.0
+    
+    def from_pad(pad, layer):
+        size = pad.size[0]
+        if layer == 'F.Mask' and pad.attributes['solder_mask_margin']:
+            size += pad.attributes['solder_mask_margin']
+        if layer == 'F.Paste' and pad.attributes['solder_paste_margin']:
+            size += pad.attributes['solder_paste_margin']
+        circ = Circle(pad.at[0], pad.at[1], size)
+        return circ
+    
+    def draw(self, ctx):
+        ctx.arc(self.x, self.y, self.radius, 0.0, math.radians(360))
+        ctx.fill()
 
 class Polygon:
     def __init__(self, points):
@@ -145,6 +185,8 @@ def pad_to_object(pad, layer):
         return Rectangle.from_pad(pad, layer)
     if shape == "trapezoid":
         return Polygon.from_pad(pad, layer)
+    if shape == "circle":
+        return Circle.from_pad(pad, layer)
     else:
         raise NotImplementedError("Pad shape " + shape + " not yet supported")
 
@@ -154,12 +196,14 @@ layers['F.CrtYd'] = Layer((0.2, 0.8, 0.2), 0.2)
 layers['F.Cu'] = Layer((0.2, 0.2, 0.8), 1.0)
 layers['F.Mask'] = Layer((0.8, 0.2, 0.8), 0.0)
 layers['F.Paste'] = Layer((0.8, 0.8, 0.2), 0.0)
-layers['F.SilkS'] = Layer((0.2, 0.8, 0.8), 0.0)
+layers['F.SilkS'] = Layer((0.2, 0.8, 0.8), 1.0)
 
 ctx.set_line_cap(cairo.LINE_CAP_ROUND)
 ctx.set_line_join(cairo.LINE_JOIN_ROUND)
 for line in m.lines:
     layers[line.layer].add_object(Line.from_kicad(line))
+for arc in m.arcs:
+    layers[arc.layer].add_object(Arc.from_kicad(arc))
 for pad in m.pads:
     for layer in pad.layers:
         layers[layer].add_object(pad_to_object(pad, layer))

@@ -1,0 +1,3 @@
+[submodule "pykicad"]
+	path = pykicad
+	url = https://github.com/dvc94ch/pykicad.git
