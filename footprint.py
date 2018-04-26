@@ -33,6 +33,27 @@ class Line:
     def from_kicad(line):
         return Line(line.start[0], line.start[1], line.end[0], line.end[1], line.width)
     
+    def from_pad(pad, layer):
+        longer = pad.size[0] > pad.size[1]
+        if longer:
+            width = pad.size[1]
+            length = pad.size[0] - width
+            x1 = pad.at[0] - (length / 2.0)
+            y1 = pad.at[1]
+            
+            x2 = pad.at[0] + (length / 2.0)
+            y2 = pad.at[1]
+        else:
+            width = pad.size[0]
+            length = pad.size[1] - width
+            x1 = pad.at[0]
+            y1 = pad.at[1] - (length / 2.0)
+            
+            x2 = pad.at[0]
+            y2 = pad.at[1] + (length / 2.0)
+        
+        return Line(x1, y1, x2, y2, width)
+    
     def draw(self, ctx):
         ctx.set_line_width(self.width)
         ctx.move_to(self.x1, self.y1)
@@ -187,6 +208,8 @@ def pad_to_object(pad, layer):
         return Polygon.from_pad(pad, layer)
     if shape == "circle":
         return Circle.from_pad(pad, layer)
+    if shape == "oval":
+        return Line.from_pad(pad, layer)
     else:
         raise NotImplementedError("Pad shape " + shape + " not yet supported")
 
