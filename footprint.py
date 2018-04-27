@@ -95,12 +95,13 @@ class Rectangle:
         ctx.restore()
 
 class Arc:
-    def __init__(self, x, y, radius, start_angle, end_angle):
+    def __init__(self, x, y, radius, start_angle, end_angle, width):
         self.x = x
         self.y = y
         self.radius = radius
         self.start_angle = start_angle
         self.end_angle = end_angle
+        self.width = width
 
     def from_kicad(arc):
         delta_x = arc.end[0] - arc.start[0]
@@ -108,10 +109,11 @@ class Arc:
         radius = math.hypot(delta_x, delta_y)
         start_angle = math.atan2(delta_y, delta_x)
         end_angle = start_angle + math.radians(arc.angle)
-        return Arc(arc.start[0], arc.start[1], radius, start_angle, end_angle)
+        return Arc(arc.start[0], arc.start[1], radius, start_angle, end_angle, arc.width)
 
     def draw(self, ctx):
         ctx.arc_negative(self.x, self.y, self.radius, self.start_angle, self.end_angle)
+        ctx.set_line_width(self.width)
         ctx.stroke()
 
 class Circle:
@@ -122,11 +124,13 @@ class Circle:
         self.filled = filled
 
     def from_kicad(circle):
-        return Circle(circle.center[0],
+        circ = Circle(circle.center[0],
                 circle.center[1],
                 math.hypot(circle.end[0] - circle.center[0],
                     circle.center[1] - circle.end[1])*2,
                 False)
+        circ.width = circle.width
+        return circ
 
     def from_pad(pad, layer):
         size = pad.size[0]
@@ -142,6 +146,7 @@ class Circle:
         if self.filled:
             ctx.fill()
         else:
+            ctx.set_line_width(self.width)
             ctx.stroke()
 
 class Polygon:
