@@ -29,10 +29,10 @@ class Line:
         self.x2 = x2
         self.y2 = y2
         self.width = width
-    
+
     def from_kicad(line):
         return Line(line.start[0], line.start[1], line.end[0], line.end[1], line.width)
-    
+
     def from_pad(pad, layer):
         longer = pad.size[0] > pad.size[1]
         if longer:
@@ -40,7 +40,7 @@ class Line:
             length = pad.size[0] - width
             x1 = pad.at[0] - (length / 2.0)
             y1 = pad.at[1]
-            
+
             x2 = pad.at[0] + (length / 2.0)
             y2 = pad.at[1]
         else:
@@ -48,25 +48,25 @@ class Line:
             length = pad.size[1] - width
             x1 = pad.at[0]
             y1 = pad.at[1] - (length / 2.0)
-            
+
             x2 = pad.at[0]
             y2 = pad.at[1] + (length / 2.0)
-        
+
         return Line(x1, y1, x2, y2, width)
-    
+
     def draw(self, ctx):
         ctx.set_line_width(self.width)
         ctx.move_to(self.x1, self.y1)
         ctx.line_to(self.x2, self.y2)
         ctx.stroke()
-        
+
 class Rectangle:
     def __init__(self, x, y, width, height):
         self.x = x
         self.y = y
         self.width = width
         self.height = height
-    
+
     def from_pad(pad, layer):
         size = [pad.size[0], pad.size[1]]
         if layer == 'F.Mask' and pad.attributes['solder_mask_margin']:
@@ -82,7 +82,7 @@ class Rectangle:
         else:
             rect.angle = 0
         return rect
-    
+
     def draw(self, ctx):
         ctx.save()
         ctx.translate(self.origin[0], self.origin[1])
@@ -101,7 +101,7 @@ class Arc:
         self.radius = radius
         self.start_angle = start_angle
         self.end_angle = end_angle
-    
+
     def from_kicad(arc):
         delta_x = arc.end[0] - arc.start[0]
         delta_y = arc.start[1] - arc.end[1] # because negative Y is higher up
@@ -115,11 +115,19 @@ class Arc:
         ctx.stroke()
 
 class Circle:
-    def __init__(self, x, y, diameter):
+    def __init__(self, x, y, diameter, filled=True):
         self.x = x
         self.y = y
         self.radius = diameter / 2.0
-    
+        self.filled = filled
+
+    def from_kicad(circle):
+        return Circle(circle.center[0],
+                circle.center[1],
+                math.hypot(circle.end[0] - circle.center[0],
+                    circle.center[1] - circle.end[1])*2,
+                False)
+
     def from_pad(pad, layer):
         size = pad.size[0]
         if layer == 'F.Mask' and pad.attributes['solder_mask_margin']:
@@ -128,10 +136,13 @@ class Circle:
             size += pad.attributes['solder_paste_margin']
         circ = Circle(pad.at[0], pad.at[1], size)
         return circ
-    
+
     def draw(self, ctx):
         ctx.arc(self.x, self.y, self.radius, 0.0, math.radians(360))
-        ctx.fill()
+        if self.filled:
+            ctx.fill()
+        else:
+            ctx.stroke()
 
 class Polygon:
     def __init__(self, points):
@@ -184,10 +195,10 @@ class Layer:
         self.color = color
         self.alpha = alpha
         self.objects = []
-    
+
     def add_object(self, obj):
         self.objects.append(obj)
-    
+
     def draw(self, ctx):
         ctx.push_group()
         ctx.set_source_rgb(*layer.color)
@@ -227,6 +238,8 @@ for line in m.lines:
     layers[line.layer].add_object(Line.from_kicad(line))
 for arc in m.arcs:
     layers[arc.layer].add_object(Arc.from_kicad(arc))
+for circle in m.circles:
+    layers[circle.layer].add_object(Circle.from_kicad(circle))
 for pad in m.pads:
     for layer in pad.layers:
         layers[layer].add_object(pad_to_object(pad, layer))
