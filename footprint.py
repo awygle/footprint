@@ -150,9 +150,12 @@ class Circle:
             ctx.stroke()
 
 class Polygon:
-    def __init__(self, points):
+    def __init__(self, points, width=0):
         self.points = points
-        Polygon.run = 0
+        self.width = width
+
+    def from_kicad(poly):
+         return Polygon(poly.pts, poly.width)
 
     def from_pad(pad, layer):
         size = [pad.size[0], pad.size[1]]
@@ -185,15 +188,20 @@ class Polygon:
         return poly
 
     def draw(self, ctx):
-        ctx.save()
-        ctx.translate(self.origin[0], self.origin[1])
-        ctx.rotate(math.radians(self.angle))
-        ctx.translate(-self.origin[0], -self.origin[1])
+        if 'angle' in dir(self):
+            ctx.save()
+            ctx.translate(self.origin[0], self.origin[1])
+            ctx.rotate(math.radians(self.angle))
+            ctx.translate(-self.origin[0], -self.origin[1])
         for point in self.points:
             ctx.line_to(point[0], point[1])
         ctx.close_path()
+        if 'angle' not in dir(self):
+            ctx.set_line_width(self.width)
+            ctx.stroke_preserve()
         ctx.fill()
-        ctx.restore()
+        if 'angle' in dir(self):
+            ctx.restore()
 
 class Layer:
     def __init__(self, color, alpha=1.0):
@@ -245,6 +253,8 @@ for arc in m.arcs:
     layers[arc.layer].add_object(Arc.from_kicad(arc))
 for circle in m.circles:
     layers[circle.layer].add_object(Circle.from_kicad(circle))
+for poly in m.polygons:
+    layers[poly.layer].add_object(Polygon.from_kicad(poly))
 for pad in m.pads:
     for layer in pad.layers:
         layers[layer].add_object(pad_to_object(pad, layer))
